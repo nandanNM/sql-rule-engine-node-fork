@@ -6,6 +6,7 @@ import {
   generateFingerprintController,
   runRulesController,
   evaluateQueryController,
+  finalSubmitController,
 } from "../controllers/api.controller.js";
 
 export const apiRouter = Router();
@@ -25,3 +26,6 @@ apiRouter.post("/rules", runRulesController);
 
 // Query evaluation
 apiRouter.post("/evaluate", evaluateQueryController);
+
+// Final Submit
+apiRouter.post("/sql/session-questions/:sessionQuestionId/submit", finalSubmitController);

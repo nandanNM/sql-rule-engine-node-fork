@@ -13,7 +13,10 @@ import {
   problemIdParamSchema,
   rulesSchema,
   validateSchema,
+  finalSubmitSchema,
+  sessionQuestionIdParamSchema,
 } from "./validation/index.js";
+import { submitSessionQuestion } from "../services/submission/submit-service.js";
 
 // Problems Controllers
 export const getAllProblems = (_req: Request, res: Response): void => {
@@ -161,5 +164,62 @@ export const evaluateQueryController = async (req: Request, res: Response): Prom
   } catch (e) {
     console.log(e);
     ApiError(res, "Internal Server Error", 500);
+  }
+};
+
+// Final Submit Controller
+export const finalSubmitController = async (req: Request, res: Response): Promise<void> => {
+  try {
+    // 1. Authentication Stub Check
+    const userId = req.headers["x-user-id"];
+    if (!userId || typeof userId !== "string") {
+      ApiError(res, "User is not authenticated", 401, {}, "UNAUTHENTICATED");
+      return;
+    }
+
+    // 2. Validate URL Params
+    const paramValidation = validateSchema(sessionQuestionIdParamSchema, {
+      sessionQuestionId: req.params.sessionQuestionId,
+    });
+    if (!paramValidation.success) {
+      ApiError(res, paramValidation.error, 400);
+      return;
+    }
+
+    // 3. Validate Body
+    const bodyValidation = validateSchema(finalSubmitSchema, req.body);
+    if (!bodyValidation.success) {
+      ApiError(res, bodyValidation.error, 400);
+      return;
+    }
+
+    const { sessionQuestionId } = paramValidation.data;
+    const { finalQuery, explanationText, edgeCaseText } = bodyValidation.data;
+
+    // 4. Call Service layer
+    const result = await submitSessionQuestion(
+      sessionQuestionId,
+      userId,
+      finalQuery,
+      explanationText,
+      edgeCaseText
+    );
+
+    if (!result.success) {
+      ApiError(
+        res,
+        result.error || "Submission failed",
+        result.statusCode || 500,
+        {},
+        result.errorCode
+      );
+      return;
+    }
+
+    // 5. Success Response
+    ApiSuccess(res, "Submission successful", 200, result.data);
+  } catch (e) {
+    console.error("Submit Error:", e);
+    ApiError(res, "Internal Server Error", 500, {}, "FEEDBACK_FAILED");
   }
 };

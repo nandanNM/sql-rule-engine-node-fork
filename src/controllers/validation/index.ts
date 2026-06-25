@@ -54,11 +54,23 @@ export const problemIdParamSchema = z.object({
   problemId: z.string().min(1, "Problem ID is required").max(100, "Problem ID cannot exceed 100 characters"),
 });
 
-// ============================================
-// Type Exports
-// ============================================
+// Final Submit body schema
+export const finalSubmitSchema = z.object({
+  finalQuery: z.string().min(1, "Final SQL query is required").max(5000, "SQL query cannot exceed 5000 characters"),
+  explanationText: z.string().max(2000, "Explanation cannot exceed 2000 characters").optional().default(""),
+  edgeCaseText: z.string().max(2000, "Edge case text cannot exceed 2000 characters").optional().default(""),
+});
+
+// Session Question ID param schema
+export const sessionQuestionIdParamSchema = z.object({
+  sessionQuestionId: z.string().min(1, "Session Question ID is required").max(100),
+});
+
+
 export type NormalizeInput = z.infer<typeof normalizeSchema>;
 export type FingerprintInput = z.infer<typeof fingerprintSchema>;
 export type RulesInput = z.infer<typeof rulesSchema>;
 export type EvaluateInput = z.infer<typeof evaluateSchema>;
 export type ProblemIdParamInput = z.infer<typeof problemIdParamSchema>;
+export type FinalSubmitInput = z.infer<typeof finalSubmitSchema>;
+export type SessionQuestionIdParamInput = z.infer<typeof sessionQuestionIdParamSchema>;
