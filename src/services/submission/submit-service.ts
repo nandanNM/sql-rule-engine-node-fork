@@ -1,10 +1,11 @@
 import { getMockedComparisonResult } from "./mock-comparison.js";
 import { generateSqlFeedback } from "../feedback/feedback-generator.js";
-import type { DebriefResponse } from "../../types/api.js";
+import type { CombinedDebriefResponse } from "../../types/api.js";
 import { db } from "../../db/index.js";
 import { attempts, sessionQuestions } from "../../db/schema.js";
 import { eq } from "drizzle-orm";
 import { randomUUID } from "crypto";
+import { evaluateSqlFollowup } from "../evaluator/sql-followup-evaluator.js";
 
 export async function submitSessionQuestion(
   sessionQuestionId: string,
@@ -12,7 +13,7 @@ export async function submitSessionQuestion(
   finalQuery: string,
   explanationText: string,
   edgeCaseText: string
-): Promise<{ success: boolean; data?: DebriefResponse; error?: string; errorCode?: string; statusCode?: number }> {
+): Promise<{ success: boolean; data?: CombinedDebriefResponse; error?: string; errorCode?: string; statusCode?: number }> {
   
   // 1. Check if session question exists
   let sessionRecord = await db.query.sessionQuestions.findFirst({
@@ -81,12 +82,21 @@ export async function submitSessionQuestion(
       ruleResults: feedbackData.ruleResults
     });
 
-    // 7. Return frontend-ready Debrief JSON
-    const debrief: DebriefResponse = {
+    const explanationEvaluation = await evaluateSqlFollowup({
+      questionId: sessionRecord.problemId || "unknown",
+      attemptId: attemptId,
+      followupQuestion: "Please explain your SQL query and logic.",
+      answer: explanationText
+    });
+
+    // 8. Return frontend-ready Combined Debrief JSON
+    const debrief: CombinedDebriefResponse = {
       success: true,
       attemptId: attemptId,
       sessionQuestionId,
-      ...feedbackData
+      ...feedbackData,
+      explanationEvaluation,
+      overallNextStep: explanationEvaluation.nextStep || feedbackData.nextStep
     };
 
     return { success: true, data: debrief };
