@@ -78,12 +78,19 @@ export async function evaluateSqlFollowup(
     }
 
     // edgeCaseAwareness checks
-    const mentionsFilterOrder = lowerAnswer.includes("before") || lowerAnswer.includes("after") || lowerAnswer.includes("filter");
-    if (mentionsFilterOrder) {
+    const mentionsEdgeCases = 
+      lowerAnswer.includes("before") || 
+      lowerAnswer.includes("after") || 
+      lowerAnswer.includes("filter") ||
+      lowerAnswer.includes("null") ||
+      lowerAnswer.includes("boundary") ||
+      lowerAnswer.includes("edge");
+
+    if (mentionsEdgeCases) {
       edgeCaseAwareness = 15;
-      strengths.push("Mentions when filtering happens (before vs after aggregation)");
+      strengths.push("Shows awareness of edge cases or execution order (e.g. before/after, nulls, boundaries)");
     } else {
-      missingPoints.push("Clarify the order of execution (which filtering happens first)");
+      missingPoints.push("Clarify the order of execution or potential edge cases (like nulls)");
     }
 
     // communicationClarity checks

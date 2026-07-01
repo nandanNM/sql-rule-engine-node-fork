@@ -7,6 +7,7 @@ import {
   runRulesController,
   evaluateQueryController,
   finalSubmitController,
+  evaluateFollowupController,
 } from "../controllers/api.controller.js";
 
 export const apiRouter = Router();
@@ -29,3 +30,6 @@ apiRouter.post("/evaluate", evaluateQueryController);
 
 // Final Submit
 apiRouter.post("/sql/session-questions/:sessionQuestionId/submit", finalSubmitController);
+
+// Standalone Followup Evaluation
+apiRouter.post("/sql/attempts/:attemptId/evaluate-followup", evaluateFollowupController);

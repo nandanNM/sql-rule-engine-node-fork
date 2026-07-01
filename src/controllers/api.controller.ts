@@ -6,17 +6,9 @@ import { runRules } from "../services/rules/rule-engine.js";
 import { evaluateQuery } from "../services/evaluation/evaluator.js";
 import { getProblemById, getProblems } from "../services/problems/problem-repository.js";
 import { ApiError, ApiSuccess } from "../utils/api-response.utils.js";
-import {
-  evaluateSchema,
-  fingerprintSchema,
-  normalizeSchema,
-  problemIdParamSchema,
-  rulesSchema,
-  validateSchema,
-  finalSubmitSchema,
-  sessionQuestionIdParamSchema,
-} from "./validation/index.js";
+import { evaluateSchema, fingerprintSchema, normalizeSchema, problemIdParamSchema, rulesSchema, validateSchema, finalSubmitSchema, sessionQuestionIdParamSchema, evaluateFollowupSchema } from "./validation/index.js";
 import { submitSessionQuestion } from "../services/submission/submit-service.js";
+import { evaluateSqlFollowup } from "../services/evaluator/sql-followup-evaluator.js";
 
 // Problems Controllers
 export const getAllProblems = (_req: Request, res: Response): void => {
@@ -221,5 +213,37 @@ export const finalSubmitController = async (req: Request, res: Response): Promis
   } catch (e) {
     console.error("Submit Error:", e);
     ApiError(res, "Internal Server Error", 500, {}, "FEEDBACK_FAILED");
+  }
+};
+
+// Standalone Explanation Evaluation Controller (Assignment 2)
+export const evaluateFollowupController = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const attemptId = req.params.attemptId;
+    if (!attemptId) {
+      ApiError(res, "Attempt ID is required", 400);
+      return;
+    }
+
+    const validation = validateSchema(evaluateFollowupSchema, req.body);
+    if (!validation.success) {
+      ApiError(res, validation.error, 400);
+      return;
+    }
+
+    const { questionId, followupQuestion, answer } = validation.data;
+    
+    // Call the evaluator service independently
+    const evaluation = await evaluateSqlFollowup({
+      questionId,
+      attemptId: attemptId as string,
+      followupQuestion,
+      answer
+    });
+
+    ApiSuccess(res, "Explanation evaluated successfully", 200, evaluation);
+  } catch (error) {
+    console.error("Evaluate Followup Error:", error);
+    ApiError(res, "Internal Server Error", 500);
   }
 };

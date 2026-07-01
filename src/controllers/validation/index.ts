@@ -61,6 +61,13 @@ export const finalSubmitSchema = z.object({
   edgeCaseText: z.string().max(2000, "Edge case text cannot exceed 2000 characters").optional().default(""),
 });
 
+// Standalone Followup Evaluation body schema (Assignment 2)
+export const evaluateFollowupSchema = z.object({
+  questionId: z.string().min(1, "Question ID is required").max(100),
+  followupQuestion: z.string().min(1, "Followup question is required").max(2000),
+  answer: z.string().max(2000, "Answer cannot exceed 2000 characters").default(""),
+});
+
 // Session Question ID param schema
 export const sessionQuestionIdParamSchema = z.object({
   sessionQuestionId: z.string().min(1, "Session Question ID is required").max(100),
@@ -74,3 +81,4 @@ export type EvaluateInput = z.infer<typeof evaluateSchema>;
 export type ProblemIdParamInput = z.infer<typeof problemIdParamSchema>;
 export type FinalSubmitInput = z.infer<typeof finalSubmitSchema>;
 export type SessionQuestionIdParamInput = z.infer<typeof sessionQuestionIdParamSchema>;
+export type EvaluateFollowupInput = z.infer<typeof evaluateFollowupSchema>;
