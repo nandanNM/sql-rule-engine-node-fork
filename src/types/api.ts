@@ -106,6 +106,52 @@ export interface RubricScores {
   explanationQuality: null;
 }
 
+// 3 possible states for evaluation
+export type EvaluationStatus = "completed" | "not_required" | "failed";
+
+// The 5 scoring dimensions (total = 100)
+export interface ExplanationEvaluationScores {
+  conceptualAccuracy: number; // max 30
+  depth: number;              // max 25
+  exampleQuality: number;     // max 20
+  edgeCaseAwareness: number;  // max 15
+  communicationClarity: number; // max 10
+}
+
+// Metadata about the evaluator itself (helps future Qwen swap)
+export interface EvaluatorMetadata {
+  domain: string;
+  questionType: string;
+  evaluatorType: string;
+  promptVersion: string;
+  rubricVersion: string;
+}
+
+// The full evaluator result returned by the evaluator service
+export interface ExplanationEvaluation {
+  evaluationStatus: EvaluationStatus;
+  readiness?: ReadinessLabel;          
+  scores?: ExplanationEvaluationScores; 
+  strengths?: string[];                 
+  missingPoints?: string[];             
+  nextStep?: string;                  
+  evaluatorMetadata: EvaluatorMetadata;
+}
+
+// Input shape for the evaluator function
+export interface EvaluateSqlFollowupInput {
+  questionId: string;
+  attemptId: string;
+  followupQuestion: string;
+  answer: string;
+}
+
+// Combined debrief = SQL feedback + explanation evaluation
+export interface CombinedDebriefResponse extends DebriefResponse {
+  explanationEvaluation: ExplanationEvaluation;
+  overallNextStep: string;
+}
+
 export interface DebriefResponse {
   success: boolean;
   attemptId: string;
