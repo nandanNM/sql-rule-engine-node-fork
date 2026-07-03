@@ -10,10 +10,12 @@ services:
     environment:
       PORT: 8000
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/sqlruleengine
+      SANDBOX_DATABASE_URL: postgresql://sandbox_ro:sandbox_ro@postgres:5432/sqlruleengine
       REDIS_URL: redis://redis:6379
     command: >
       sh -c "pnpm db:migrate &&
              node ./dist/db/seed.js &&
+             node ./dist/db/setup-sandbox-role.js &&
              node ./dist/index.js"
     depends_on:
       postgres:
