@@ -37,17 +37,46 @@ pnpm run db:push
 
 # Seed the problems, expected results, and the database schemas
 pnpm run db:seed
+
+# Provision the least-privilege, read-only role used to run untrusted SQL
+pnpm run db:sandbox
 ```
 
 ### 4. Start the Server
 ```bash
 pnpm run dev
 ```
-Server runs on `http://localhost:8000`. Test the API via `GET /api/health`.
+Server runs on `http://localhost:8000`. Health check: `GET /health`. API routes live under `/api/*`.
+
+## 🔒 Sandboxed SQL Execution
+User-submitted SQL never touches the privileged database connection. It runs through
+a defense-in-depth sandbox:
+
+1. **AST allow-list** — only a single `SELECT` statement is permitted (verified by
+   parsing, not fragile keyword matching).
+2. **Least-privilege role** — a dedicated `sandbox_ro` role (provisioned by
+   `pnpm run db:sandbox`) that is **not** a superuser, can only `SELECT` from the seed
+   schemas, and cannot read server files, `pg_authid`, or the app's `expected_results`.
+3. **Read-only transaction** with per-query `statement_timeout`, `lock_timeout`, and
+   `idle_in_transaction_session_timeout`.
+4. **Row cap** — results are streamed through a cursor and bounded by `SQL_MAX_ROWS`
+   so a huge result set can't exhaust memory.
+
+Set `SANDBOX_DATABASE_URL` to the read-only role's connection string. If it's unset the
+app falls back to the privileged URL and logs a warning. Guardrails are tunable via
+`SQL_STATEMENT_TIMEOUT_MS`, `SQL_LOCK_TIMEOUT_MS`, `SQL_IDLE_IN_TX_TIMEOUT_MS`, and
+`SQL_MAX_ROWS` (see `.env.sample`).
+
+Run the test suite (integration tests that verify both layers of the sandbox):
+```bash
+pnpm test
+```
 
 ## 📜 Scripts
 - `pnpm run dev` - Start dev server with nodemon and tsx
 - `pnpm run build` - Compile TypeScript to `./dist`
 - `pnpm run db:seed` - Seeds database schemas, problems, and expected hashes
 - `pnpm run db:push` - Synchronize Drizzle schema to the database
+- `pnpm run db:sandbox` - Provision/refresh the read-only sandbox role
+- `pnpm test` - Run the Vitest integration suite
 - `pnpm run db:studio` - Open Drizzle Studio to view database contents in the browser
