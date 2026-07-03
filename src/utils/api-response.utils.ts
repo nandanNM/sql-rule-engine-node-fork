@@ -10,6 +10,7 @@ interface ApiSuccessResponse<T = unknown> {
 interface ApiErrorResponse {
   response: false;
   error: string;
+  error_code?: string;
   details?: unknown;
 }
 
@@ -32,10 +33,17 @@ export const ApiSuccess = <T = unknown>(
   res.status(statusCode).json(response);
 };
 
-export const ApiError = (res: Response, error: string, statusCode: number = 500, details?: unknown): void => {
+export const ApiError = (
+  res: Response,
+  error: string,
+  statusCode: number = 500,
+  details?: unknown,
+  errorCode?: string,
+): void => {
   const response: ApiErrorResponse = {
     response: false,
     error,
+    ...(errorCode !== undefined && { error_code: errorCode }),
     ...(details !== undefined && { details }),
   };
   res.status(statusCode).json(response);

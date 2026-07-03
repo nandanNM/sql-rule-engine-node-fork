@@ -6,14 +6,13 @@ import { runRules } from "../services/rules/rule-engine.js";
 import { evaluateQuery } from "../services/evaluation/evaluator.js";
 import { getProblemById, getProblems } from "../services/problems/problem-repository.js";
 import { ApiError, ApiSuccess } from "../utils/api-response.utils.js";
-import {
-  evaluateSchema,
-  fingerprintSchema,
-  normalizeSchema,
-  problemIdParamSchema,
-  rulesSchema,
-  validateSchema,
-} from "./validation/index.js";
+import { evaluateSchema, fingerprintSchema, normalizeSchema, problemIdParamSchema, rulesSchema, validateSchema, finalSubmitSchema, sessionQuestionIdParamSchema, evaluateFollowupSchema } from "./validation/index.js";
+import { submitSessionQuestion } from "../services/submission/submit-service.js";
+import { evaluateSqlFollowup } from "../services/evaluator/sql-followup-evaluator.js";
+import type { AuthenticatedRequest } from "../middlewares/auth.middleware.js";
+import { consumeRun } from "../services/run-limit/run-limit.service.js";
+import { recordRun } from "../services/run-limit/run-log.service.js";
+import { AppError } from "../utils/app-error.utils.js";
 
 // Problems Controllers
 export const getAllProblems = (_req: Request, res: Response): void => {
@@ -150,16 +149,136 @@ export const evaluateQueryController = async (req: Request, res: Response): Prom
 
     const { sql, schema_name, problem_id } = validation.data;
 
+    const userId = (req as AuthenticatedRequest).user?.userId;
+    if (!userId) {
+      ApiError(res, "User is not authenticated", 401, undefined, "UNAUTHENTICATED");
+      return;
+    }
+
+    // Enforce the per-question run quota BEFORE executing anything (caps DB load).
+    // Throws AppError(429) when exhausted — handled below.
+    const quota = await consumeRun(userId, problem_id);
+
+    const startedAt = Date.now();
     const result = await evaluateQuery(sql, schema_name, problem_id);
+    const runtimeMs = Date.now() - startedAt;
+
+    // Track every run in history — best-effort, must not fail the request.
+    try {
+      await recordRun({
+        userId,
+        problemId: problem_id,
+        schemaName: schema_name,
+        sql,
+        correct: result.error ? false : (result.correct ?? null),
+        runtimeMs,
+        error: result.error ?? null,
+      });
+    } catch (logErr) {
+      console.error("Failed to record run history:", logErr);
+    }
 
     if (result.error) {
       ApiError(res, result.error, 400);
       return;
     }
 
-    ApiSuccess(res, "Query evaluated successfully", 200, result);
+    ApiSuccess(res, "Query evaluated successfully", 200, { ...result, run_quota: quota });
   } catch (e) {
+    if (e instanceof AppError) {
+      ApiError(res, e.message, e.statusCode, e.details, e.errorCode);
+      return;
+    }
     console.log(e);
+    ApiError(res, "Internal Server Error", 500);
+  }
+};
+
+// Final Submit Controller
+export const finalSubmitController = async (req: Request, res: Response): Promise<void> => {
+  try {
+    // 1. Authenticated user — guaranteed by authMiddleware on this route.
+    const userId = (req as AuthenticatedRequest).user?.userId;
+    if (!userId) {
+      ApiError(res, "User is not authenticated", 401, {}, "UNAUTHENTICATED");
+      return;
+    }
+
+    // 2. Validate URL Params
+    const paramValidation = validateSchema(sessionQuestionIdParamSchema, {
+      sessionQuestionId: req.params.sessionQuestionId,
+    });
+    if (!paramValidation.success) {
+      ApiError(res, paramValidation.error, 400);
+      return;
+    }
+
+    // 3. Validate Body
+    const bodyValidation = validateSchema(finalSubmitSchema, req.body);
+    if (!bodyValidation.success) {
+      ApiError(res, bodyValidation.error, 400);
+      return;
+    }
+
+    const { sessionQuestionId } = paramValidation.data;
+    const { finalQuery, explanationText, edgeCaseText } = bodyValidation.data;
+
+    // 4. Call Service layer
+    const result = await submitSessionQuestion(
+      sessionQuestionId,
+      userId,
+      finalQuery,
+      explanationText,
+      edgeCaseText
+    );
+
+    if (!result.success) {
+      ApiError(
+        res,
+        result.error || "Submission failed",
+        result.statusCode || 500,
+        {},
+        result.errorCode
+      );
+      return;
+    }
+
+    // 5. Success Response
+    ApiSuccess(res, "Submission successful", 200, result.data);
+  } catch (e) {
+    console.error("Submit Error:", e);
+    ApiError(res, "Internal Server Error", 500, {}, "FEEDBACK_FAILED");
+  }
+};
+
+// Standalone Explanation Evaluation Controller (Assignment 2)
+export const evaluateFollowupController = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const attemptId = req.params.attemptId;
+    if (!attemptId) {
+      ApiError(res, "Attempt ID is required", 400);
+      return;
+    }
+
+    const validation = validateSchema(evaluateFollowupSchema, req.body);
+    if (!validation.success) {
+      ApiError(res, validation.error, 400);
+      return;
+    }
+
+    const { questionId, followupQuestion, answer } = validation.data;
+    
+    // Call the evaluator service independently
+    const evaluation = await evaluateSqlFollowup({
+      questionId,
+      attemptId: attemptId as string,
+      followupQuestion,
+      answer
+    });
+
+    ApiSuccess(res, "Explanation evaluated successfully", 200, evaluation);
+  } catch (error) {
+    console.error("Evaluate Followup Error:", error);
     ApiError(res, "Internal Server Error", 500);
   }
 };

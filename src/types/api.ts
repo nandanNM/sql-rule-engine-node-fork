@@ -78,3 +78,97 @@ export interface ProblemResponse {
   schema: string;
   query: string;
 }
+
+
+
+
+
+// Final Submit + Debrief Module Types
+export type ApprovedRuleCode = 
+  | "MISSING_GROUP_BY" | "WRONG_JOIN_TYPE" | "WRONG_JOIN_KEY"
+  | "MISSING_FILTER" | "WRONG_AGGREGATION" | "MISSING_HAVING"
+  | "WINDOW_TIE_HANDLING_ERROR" | "ORDER_BY_MISSING"
+  | "DUPLICATE_ROW_INFLATION" | "NULL_HANDLING_ISSUE" | "UNSAFE_SQL_BLOCKED";
+
+export type ReadinessLabel = "Not Ready" | "Building" | "Almost Ready" | "Ready";
+
+export interface RuleResultDebrief {
+  ruleCode: ApprovedRuleCode;
+  passed: boolean;
+  message: string;
+}
+
+export interface RubricScores {
+  correctOutput: number;
+  sqlLogic: number;
+  edgeCase: number;
+  readability: number;
+  explanationQuality: null;
+}
+
+// 3 possible states for evaluation
+export type EvaluationStatus = "completed" | "not_required" | "failed";
+
+// The 5 scoring dimensions (total = 100)
+export interface ExplanationEvaluationScores {
+  conceptualAccuracy: number; // max 30
+  depth: number;              // max 25
+  exampleQuality: number;     // max 20
+  edgeCaseAwareness: number;  // max 15
+  communicationClarity: number; // max 10
+}
+
+// Metadata about the evaluator itself (helps future Qwen swap)
+export interface EvaluatorMetadata {
+  domain: string;
+  questionType: string;
+  evaluatorType: string;
+  promptVersion: string;
+  rubricVersion: string;
+}
+
+// The full evaluator result returned by the evaluator service
+export interface ExplanationEvaluation {
+  evaluationStatus: EvaluationStatus;
+  readiness?: ReadinessLabel;          
+  scores?: ExplanationEvaluationScores; 
+  strengths?: string[];                 
+  missingPoints?: string[];             
+  nextStep?: string;                  
+  evaluatorMetadata: EvaluatorMetadata;
+}
+
+// Input shape for the evaluator function
+export interface EvaluateSqlFollowupInput {
+  questionId: string;
+  attemptId: string;
+  followupQuestion: string;
+  answer: string;
+}
+
+// Combined debrief = SQL feedback + explanation evaluation
+export interface CombinedDebriefResponse extends DebriefResponse {
+  explanationEvaluation: ExplanationEvaluation;
+  overallNextStep: string;
+}
+
+export interface DebriefResponse {
+  success: boolean;
+  attemptId: string;
+  sessionQuestionId: string;
+  isCorrect: boolean;
+  score: number;
+  readiness: ReadinessLabel;
+  feedbackSummary: string;
+  strengths: string[];
+  mistakes: string[];
+  nextStep: string;
+  rubricScores: RubricScores;
+  ruleResults: RuleResultDebrief[];
+}
+
+export interface ComparisonResult {
+  isCorrect: boolean;
+  matchedExpectedOutput: boolean;
+  detectedRules: Array<{ ruleCode: ApprovedRuleCode; passed: boolean }>;
+}
