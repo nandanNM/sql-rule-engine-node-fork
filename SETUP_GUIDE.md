@@ -29,6 +29,17 @@ The application needs to connect to Postgres and Redis.
    - `DATABASE_URL` is the **privileged** connection (migrations, seeding).
    - `SANDBOX_DATABASE_URL` is the **least-privilege, read-only** role used to run
      untrusted user SQL. You provision it in Step 5b below.
+3. Add the **auth** variables (JWT). Generate strong secrets with `openssl rand -hex 32`:
+   ```env
+   NODE_ENV=development
+   JWT_SECRET=<openssl rand -hex 32>
+   JWT_REFRESH_SECRET=<openssl rand -hex 32>
+   ACCESS_TOKEN_TTL=15m
+   REFRESH_TOKEN_TTL=7d
+   MAX_RUNS_PER_QUESTION=3
+   ```
+   The `users` and `auth_sessions` tables are created by `pnpm run db:push` (Step 4),
+   along with `problem_run_counts` (run quota) and `problem_runs` (run history).
 
 ## Step 4: Database Setup & Migrations
 We use Drizzle ORM for database schema management.

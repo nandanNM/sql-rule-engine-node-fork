@@ -3,9 +3,11 @@
 A high-performance Node.js REST API for evaluating, normalizing, and verifying SQL queries against a PostgreSQL database. This service takes SQL queries, analyzes their AST using `node-sql-parser`, enforces syntax rules, and safely runs the query to verify accuracy against a predefined set of problems.
 
 ## 🚀 Features
+- **JWT Authentication**: Stateful access + rotating refresh tokens (httpOnly cookie), bcrypt password hashing, and route protection middleware.
 - **SQL Normalization**: Automatically standardizes SQL queries using AST parsing.
 - **Rule Engine**: Validates queries against best-practice rules (e.g., no blocked keywords, enforcing SELECT only).
 - **Automated Evaluation**: Safely runs queries against isolated schemas (like `ecommerce`).
+- **Run Limiting & Tracking**: Caps executions at `MAX_RUNS_PER_QUESTION` (default 3) per user per problem, and logs every run to a history table.
 - **Smart Hashing**: Hashes expected query outputs securely for fast comparison.
 - **Caching Mechanism**: Utilizes Redis for rapid, repeated evaluations of identical queries.
 - **Fully Type-Safe**: Written in TypeScript using Express, Drizzle ORM, and Zod.
@@ -22,9 +24,12 @@ For complete step-by-step instructions on setting up this project from scratch, 
 - Redis
 
 ### 2. Environment Setup
-Create a `.env` file from the sample and fill in your connection strings:
+Create a `.env` file from the sample and fill in your connection strings and JWT secrets:
 ```bash
 cp .env.sample .env
+# generate strong auth secrets
+echo "JWT_SECRET=$(openssl rand -hex 32)"          # paste into .env
+echo "JWT_REFRESH_SECRET=$(openssl rand -hex 32)"  # paste into .env
 ```
 
 ### 3. Install & Seed
@@ -71,6 +76,42 @@ Run the test suite (integration tests that verify both layers of the sandbox):
 ```bash
 pnpm test
 ```
+
+## 🔑 Authentication & Authorization
+Auth uses a stateful JWT design (mirrors a rotating-refresh best practice):
+
+- **Access token** (15m) returned in the JSON body (`data.accessToken`) — sent as
+  `Authorization: Bearer <token>` on protected requests.
+- **Refresh token** (7d) in an httpOnly cookie **and** an `auth_sessions` row. Each
+  refresh rotates the token (unique `jti`); a validly-signed token not in the DB is
+  treated as reuse and wipes all of that user's sessions.
+- Passwords hashed with **bcrypt**. Bodies validated by a zod `validate` middleware;
+  errors flow through a global error handler as the standard `{ response:false, error }`.
+
+Set `JWT_SECRET`, `JWT_REFRESH_SECRET`, `NODE_ENV` (and optional `ACCESS_TOKEN_TTL` /
+`REFRESH_TOKEN_TTL`) in `.env` — generate secrets with `openssl rand -hex 32`.
+
+### Route map
+| Method | Route | Auth | Notes |
+|--------|-------|------|-------|
+| POST | `/api/auth/register` | public | → `{ accessToken, user }` + refresh cookie |
+| POST | `/api/auth/login` | public | → `{ accessToken, user }` + refresh cookie |
+| POST | `/api/auth/refresh` | cookie | rotates refresh, → `{ accessToken }` |
+| POST | `/api/auth/logout` | cookie | clears session + cookie |
+| GET | `/api/auth/me` | **Bearer** | → `{ user: { id, email, role } }` |
+| GET | `/api/problems` | public | list problems |
+| GET | `/api/problems/:id` | public | problem detail |
+| POST | `/api/normalize` `/rules` `/fingerprint` | **Bearer** | rule-engine helpers |
+| POST | `/api/evaluate` | **Bearer** | runs sandboxed SQL; enforces run quota; logs run; → `{ ...result, run_quota }` |
+| GET | `/api/runs` | **Bearer** | run history; `?problemId=` & `?limit=` |
+| POST | `/api/sql/session-questions/:id/submit` | **Bearer** | final submit (uses `req.user`) |
+
+### Run limiting
+`POST /api/evaluate` calls `consumeRun(userId, problemId)` before executing: an atomic,
+race-safe conditional upsert on `problem_run_counts` that increments only while under
+`MAX_RUNS_PER_QUESTION` (default 3), returning **429 `RUN_LIMIT_EXCEEDED`** once
+exhausted. Every run (SQL, correctness, runtime, error) is appended to `problem_runs`
+and readable via `GET /api/runs`.
 
 ## 📜 Scripts
 - `pnpm run dev` - Start dev server with nodemon and tsx
