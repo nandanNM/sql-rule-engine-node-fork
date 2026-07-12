@@ -6,10 +6,18 @@ import { settings } from "../config/settings.js";
 
 interface ProblemRecord {
   problem_id: string;
+  slug?: string;
   title: string;
+  difficulty?: string;
   pattern: string;
   schema: string;
+  concepts?: string[];
+  problem_statement?: string;
   query: string;
+  expected_rule_codes?: string[];
+  followup_question?: string;
+  debrief_hint?: string;
+  developer_note?: string;
 }
 
 interface ExpectedResultRecord {
@@ -37,14 +45,40 @@ async function seed(): Promise<void> {
 
     for (const problem of problems) {
       await client.query(
-        `INSERT INTO problems (problem_id, title, pattern, schema_name, query)
-         VALUES ($1, $2, $3, $4, $5)
+        `INSERT INTO problems (
+           problem_id, slug, title, difficulty, pattern, schema_name,
+           concepts, problem_statement, query, expected_rule_codes,
+           followup_question, debrief_hint, developer_note
+         )
+         VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9, $10::jsonb, $11, $12, $13)
          ON CONFLICT (problem_id) DO UPDATE
-         SET title = EXCLUDED.title,
+         SET slug = EXCLUDED.slug,
+             title = EXCLUDED.title,
+             difficulty = EXCLUDED.difficulty,
              pattern = EXCLUDED.pattern,
              schema_name = EXCLUDED.schema_name,
-             query = EXCLUDED.query`,
-        [problem.problem_id, problem.title, problem.pattern, problem.schema, problem.query],
+             concepts = EXCLUDED.concepts,
+             problem_statement = EXCLUDED.problem_statement,
+             query = EXCLUDED.query,
+             expected_rule_codes = EXCLUDED.expected_rule_codes,
+             followup_question = EXCLUDED.followup_question,
+             debrief_hint = EXCLUDED.debrief_hint,
+             developer_note = EXCLUDED.developer_note`,
+        [
+          problem.problem_id,
+          problem.slug ?? null,
+          problem.title,
+          problem.difficulty ?? null,
+          problem.pattern,
+          problem.schema,
+          JSON.stringify(problem.concepts ?? []),
+          problem.problem_statement ?? null,
+          problem.query,
+          JSON.stringify(problem.expected_rule_codes ?? []),
+          problem.followup_question ?? null,
+          problem.debrief_hint ?? null,
+          problem.developer_note ?? null,
+        ],
       );
     }
 

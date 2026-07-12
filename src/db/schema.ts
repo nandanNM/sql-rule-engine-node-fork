@@ -34,10 +34,20 @@ export const authSessions = pgTable(
 
 export const problems = pgTable("problems", {
   problemId: text("problem_id").primaryKey(),
+  slug: text("slug"),
   title: text("title").notNull(),
+  difficulty: text("difficulty"),
   pattern: text("pattern").notNull(),
   schemaName: text("schema_name").notNull(),
+  concepts: jsonb("concepts"),
+  problemStatement: text("problem_statement"),
+  // `query` is the canonical reference solution (executed to generate the
+  // expected-result hash). It is never returned by the public problems API.
   query: text("query").notNull(),
+  expectedRuleCodes: jsonb("expected_rule_codes"),
+  followupQuestion: text("followup_question"),
+  debriefHint: text("debrief_hint"),
+  developerNote: text("developer_note"),
 });
 
 export const expectedResults = pgTable(
@@ -56,8 +66,7 @@ export const expectedResults = pgTable(
   ],
 );
 
-
-// I have added session_questions — tracks a student's question within a session
+// A student's question within an interview/practice session.
 export const sessionQuestions = pgTable("session_questions", {
   id: text("id").primaryKey(),
   userId: text("user_id").notNull(),
@@ -108,7 +117,7 @@ export const problemRuns = pgTable(
   ],
 );
 
-// Now I have added attempts — the submission record for a session question
+// The submission record for a session question.
 export const attempts = pgTable("attempts", {
   id: text("id").primaryKey(),
   sessionQuestionId: text("session_question_id")

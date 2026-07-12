@@ -1,58 +1,122 @@
 [
   {
     "problem_id": "Q01",
+    "slug": "sql_duplicate_email_001",
     "title": "Find Duplicate Emails",
-    "pattern": "GROUP BY + HAVING",
+    "difficulty": "easy",
     "schema": "ecommerce",
-    "query": "SELECT email FROM customers GROUP BY email HAVING COUNT(*) > 1;"
+    "pattern": "Duplicate / Data Quality Checks",
+    "concepts": ["GROUP BY", "COUNT", "HAVING", "LOWER/TRIM"],
+    "problem_statement": "Find email addresses that appear more than once in the customers table. Treat emails case-insensitively, so asha@example.com and ASHA@example.com should be treated as the same email.",
+    "query": "SELECT\n  LOWER(TRIM(email)) AS normalized_email,\n  COUNT(*) AS duplicate_count\nFROM customers\nWHERE email IS NOT NULL\nGROUP BY LOWER(TRIM(email))\nHAVING COUNT(*) > 1;",
+    "expected_rule_codes": ["MISSING_GROUP_BY", "MISSING_HAVING", "WRONG_AGGREGATION", "NULL_HANDLING_ISSUE"],
+    "followup_question": "Why do we use GROUP BY and HAVING to find duplicate emails instead of using WHERE alone?",
+    "debrief_hint": "Group by the normalized email value and filter groups with COUNT(*) > 1. Use LOWER/TRIM when duplicate detection should ignore case and extra spaces.",
+    "developer_note": "Seed at least one exact duplicate email and one case-variant duplicate email. Also include one NULL email to confirm NULL handling is intentional."
   },
   {
     "problem_id": "Q02",
+    "slug": "sql_second_highest_order_001",
     "title": "Second Highest Order Value",
-    "pattern": "Ranking / subquery / limit-offset",
+    "difficulty": "medium",
     "schema": "ecommerce",
-    "query": "SELECT MAX(total_amount) FROM orders WHERE total_amount < (SELECT MAX(total_amount) FROM orders);"
+    "pattern": "Subquery / Aggregation",
+    "concepts": ["Subquery", "MAX", "Filtering"],
+    "problem_statement": "Find the second highest distinct order value from the orders table. If the highest value appears multiple times, it should still count as only the highest distinct value.",
+    "query": "SELECT\n  MAX(total_amount) AS second_highest_order_value\nFROM orders\nWHERE total_amount < (\n  SELECT MAX(total_amount)\n  FROM orders\n);",
+    "expected_rule_codes": ["MISSING_FILTER", "WRONG_AGGREGATION", "NULL_HANDLING_ISSUE"],
+    "followup_question": "Why does this solution use a subquery with MAX(total_amount) instead of simply sorting all orders?",
+    "debrief_hint": "First find the maximum order value, then find the maximum value that is less than that maximum. This gives the second highest distinct value.",
+    "developer_note": "Seed tied highest order values and at least one lower value. This checks that the query returns the second highest distinct value, not the second row."
   },
   {
     "problem_id": "Q03",
+    "slug": "sql_products_above_avg_001",
     "title": "Products Above Average Price",
-    "pattern": "Subquery",
+    "difficulty": "easy",
     "schema": "ecommerce",
-    "query": "SELECT product_name FROM products WHERE price > (SELECT AVG(price) FROM products);"
+    "pattern": "Subquery / Basic Filtering",
+    "concepts": ["WHERE", "AVG", "Subquery", "NULL Handling"],
+    "problem_statement": "Find all products whose price is greater than the average product price. Products with NULL price should not be returned.",
+    "query": "SELECT\n  product_id,\n  product_name,\n  price\nFROM products\nWHERE price > (\n  SELECT AVG(price)\n  FROM products\n  WHERE price IS NOT NULL\n);",
+    "expected_rule_codes": ["MISSING_FILTER", "WRONG_AGGREGATION", "NULL_HANDLING_ISSUE"],
+    "followup_question": "Why is the average price calculated inside a subquery in this problem?",
+    "debrief_hint": "Use a subquery to calculate the average price, then filter products whose price is greater than that value. NULL prices should not be treated as zero.",
+    "developer_note": "Include at least one NULL product price and at least one product exactly equal to the average to confirm strict greater-than behavior."
   },
   {
     "problem_id": "Q04",
+    "slug": "sql_top_products_category_001",
     "title": "Top 3 Products per Category",
-    "pattern": "Window functions",
+    "difficulty": "hard",
     "schema": "ecommerce",
-    "query": "SELECT * FROM (SELECT *, ROW_NUMBER() OVER (PARTITION BY category_id ORDER BY price DESC) AS rank FROM products) t WHERE rank <= 3;"
+    "pattern": "Ranking / Window Functions",
+    "concepts": ["DENSE_RANK", "PARTITION BY", "JOIN", "GROUP BY"],
+    "problem_statement": "Find the top 3 revenue-generating products in each category. If products are tied in revenue, they should receive the same rank and all products with rank 3 or better should be included.",
+    "query": "WITH product_revenue AS (\n  SELECT\n    p.category_id,\n    c.category_name,\n    p.product_id,\n    p.product_name,\n    SUM(oi.quantity * oi.unit_price) AS total_revenue\n  FROM products p\n  JOIN categories c\n    ON p.category_id = c.category_id\n  JOIN order_items oi\n    ON p.product_id = oi.product_id\n  GROUP BY\n    p.category_id,\n    c.category_name,\n    p.product_id,\n    p.product_name\n), ranked_products AS (\n  SELECT\n    category_id,\n    category_name,\n    product_id,\n    product_name,\n    total_revenue,\n    DENSE_RANK() OVER (\n      PARTITION BY category_id\n      ORDER BY total_revenue DESC\n    ) AS revenue_rank\n  FROM product_revenue\n)\nSELECT\n  category_name,\n  product_id,\n  product_name,\n  total_revenue,\n  revenue_rank\nFROM ranked_products\nWHERE revenue_rank <= 3\nORDER BY category_name, revenue_rank, product_id;",
+    "expected_rule_codes": ["WINDOW_TIE_HANDLING_ERROR", "MISSING_GROUP_BY", "WRONG_AGGREGATION", "WRONG_JOIN_KEY", "DUPLICATE_ROW_INFLATION", "ORDER_BY_MISSING"],
+    "followup_question": "Why is DENSE_RANK a better fit than ROW_NUMBER when products can have tied revenue?",
+    "debrief_hint": "Use DENSE_RANK when tied products should share the same rank. A category may return more than 3 rows if there are ties within the top 3 ranks.",
+    "developer_note": "Seed tied product revenue, including a tie at or near the rank-3 boundary. The expected output may legitimately contain more than 3 products for a category."
   },
   {
     "problem_id": "Q05",
+    "slug": "sql_customers_never_ordered_001",
     "title": "Customers Who Never Ordered",
-    "pattern": "LEFT JOIN + NULL filter",
+    "difficulty": "easy",
     "schema": "ecommerce",
-    "query": "SELECT c.customer_id FROM customers c LEFT JOIN orders o ON c.customer_id = o.customer_id WHERE o.order_id IS NULL;"
+    "pattern": "Joins",
+    "concepts": ["LEFT JOIN", "NULL Filtering"],
+    "problem_statement": "Find customers who have never placed an order.",
+    "query": "SELECT\n  c.customer_id,\n  c.customer_name,\n  c.email\nFROM customers c\nLEFT JOIN orders o\n  ON c.customer_id = o.customer_id\nWHERE o.order_id IS NULL\nORDER BY c.customer_id;",
+    "expected_rule_codes": ["WRONG_JOIN_TYPE", "WRONG_JOIN_KEY", "MISSING_FILTER", "NULL_HANDLING_ISSUE"],
+    "followup_question": "Why do we need a LEFT JOIN instead of an INNER JOIN to find customers who never ordered?",
+    "debrief_hint": "LEFT JOIN keeps all customers. Filtering where the joined order is NULL identifies customers with no matching orders.",
+    "developer_note": "Seed at least one zero-order customer. Without this edge case, INNER JOIN mistakes may accidentally look correct."
   },
   {
     "problem_id": "Q06",
+    "slug": "sql_orders_multiple_items_001",
     "title": "Orders with Multiple Items",
-    "pattern": "GROUP BY + HAVING",
+    "difficulty": "easy",
     "schema": "ecommerce",
-    "query": "SELECT order_id, COUNT(product_id) as item_count FROM order_items GROUP BY order_id HAVING COUNT(product_id) > 1;"
+    "pattern": "Aggregation + HAVING",
+    "concepts": ["GROUP BY", "COUNT", "HAVING"],
+    "problem_statement": "Find orders that contain more than one item line.",
+    "query": "SELECT\n  order_id,\n  COUNT(*) AS item_count\nFROM order_items\nGROUP BY order_id\nHAVING COUNT(*) > 1;",
+    "expected_rule_codes": ["MISSING_GROUP_BY", "MISSING_HAVING", "WRONG_AGGREGATION"],
+    "followup_question": "Why is HAVING used here instead of WHERE?",
+    "debrief_hint": "Use GROUP BY to group item lines by order, then HAVING COUNT(*) > 1 to keep only orders with multiple item rows.",
+    "developer_note": "Seed orders with exactly one item and orders with multiple item rows. Include at least one order with quantity greater than one to distinguish item lines from item quantity."
   },
   {
     "problem_id": "Q07",
+    "slug": "sql_cumulative_revenue_001",
     "title": "Cumulative Revenue",
-    "pattern": "Window functions",
+    "difficulty": "medium",
     "schema": "ecommerce",
-    "query": "SELECT order_date, SUM(total_amount) OVER (ORDER BY order_date) AS running_total FROM orders;"
+    "pattern": "Date / Trend Analysis + Window Function",
+    "concepts": ["DATE", "GROUP BY", "SUM", "Window Function", "Running Total"],
+    "problem_statement": "Calculate daily revenue and cumulative revenue by order date.",
+    "query": "WITH daily_revenue AS (\n  SELECT\n    DATE(order_date) AS revenue_date,\n    SUM(total_amount) AS daily_revenue\n  FROM orders\n  GROUP BY DATE(order_date)\n), running_revenue AS (\n  SELECT\n    revenue_date,\n    daily_revenue,\n    SUM(daily_revenue) OVER (\n      ORDER BY revenue_date\n      ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW\n    ) AS cumulative_revenue\n  FROM daily_revenue\n)\nSELECT\n  revenue_date,\n  daily_revenue,\n  cumulative_revenue\nFROM running_revenue\nORDER BY revenue_date;",
+    "expected_rule_codes": ["MISSING_GROUP_BY", "WRONG_AGGREGATION", "ORDER_BY_MISSING", "NULL_HANDLING_ISSUE"],
+    "followup_question": "Why must the window function order by revenue_date when calculating cumulative revenue?",
+    "debrief_hint": "First aggregate revenue per day. Then use SUM(daily_revenue) OVER (ORDER BY revenue_date) to calculate the running total over time.",
+    "developer_note": "Seed multiple orders on the same date and multiple dates. Use PostgreSQL date behavior only. Do not validate this query using SQLite for hash generation."
   },
   {
     "problem_id": "Q08",
+    "slug": "sql_total_revenue_customer_001",
     "title": "Total Revenue per Customer",
-    "pattern": "Multi-table joins + aggregation",
+    "difficulty": "medium",
     "schema": "ecommerce",
-    "query": "SELECT c.customer_id, SUM(o.total_amount) AS total_revenue FROM customers c JOIN orders o ON c.customer_id = o.customer_id GROUP BY c.customer_id;"
+    "pattern": "Join + Aggregation",
+    "concepts": ["JOIN", "SUM", "GROUP BY"],
+    "problem_statement": "Find the total revenue generated by each customer who has placed at least one order.",
+    "query": "SELECT\n  c.customer_id,\n  c.customer_name,\n  SUM(o.total_amount) AS total_revenue\nFROM customers c\nJOIN orders o\n  ON c.customer_id = o.customer_id\nGROUP BY c.customer_id, c.customer_name;",
+    "expected_rule_codes": ["WRONG_JOIN_TYPE", "WRONG_JOIN_KEY", "MISSING_GROUP_BY", "WRONG_AGGREGATION", "DUPLICATE_ROW_INFLATION"],
+    "followup_question": "Why is grouping by customer required when calculating total revenue per customer?",
+    "debrief_hint": "Join customers with their orders, then group at the customer level and sum order amounts. This version intentionally includes only customers who have placed at least one order.",
+    "developer_note": "Seed at least one customer with zero orders. That customer should be excluded because the problem is scoped to customers who have placed at least one order."
   }
 ]

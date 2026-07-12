@@ -71,12 +71,39 @@ export interface EvaluateResponse {
   error?: string;
 }
 
-export interface ProblemResponse {
+// Full internal record — the shape of src/data/problems.json. Includes the
+// reference solution (`query`), expected rule codes and developer notes, so it
+// must NEVER be sent to a client. Use PublicProblem for API responses.
+export interface ProblemRecord {
   problem_id: string;
+  slug?: string;
   title: string;
+  difficulty?: string;
   pattern: string;
   schema: string;
+  concepts?: string[];
+  problem_statement?: string;
   query: string;
+  expected_rule_codes?: string[];
+  followup_question?: string;
+  debrief_hint?: string;
+  developer_note?: string;
+}
+
+// Student-safe projection returned by the public problems API. Deliberately
+// omits the reference solution, expected rule codes, debrief hint and developer
+// notes so browsing the catalogue can never leak the answer. Field names are
+// camelCase to match what the frontend QuestionCard/QuestionExplorer consume.
+export interface PublicProblem {
+  id: string;
+  slug?: string;
+  title: string;
+  difficulty?: string;
+  schemaName: string;
+  pattern: string;
+  concepts: string[];
+  problemStatement?: string;
+  followupQuestion?: string;
 }
 
 

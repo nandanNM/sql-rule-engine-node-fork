@@ -49,11 +49,7 @@ export const ApiError = (
   res.status(statusCode).json(response);
 };
 
-export const ApiResponse = ApiSuccess;
-
-/* Developer notes */
-// Standard response format:
-// response: { response: true, message: "...", data?: {...}, token?: "..." }
-// Error: { response: false, error: "...", details?: {...} }
-//
-// This ensures frontend always knows if request succeeded by checking 'response' field
+// Every response carries a boolean `response` flag so the frontend can branch on
+// success/failure without inspecting the HTTP status:
+//   success: { response: true,  message, data?, token? }
+//   error:   { response: false, error, error_code?, details? }

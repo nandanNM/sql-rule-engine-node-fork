@@ -65,6 +65,18 @@ The evaluation engine relies on sample database schemas (e.g., `ecommerce`) and 
    - Inserts problem definitions from `src/data/problems.json` into the DB.
    - Inserts the expected result hashes from `src/data/expected-results.json` into the DB.
 
+> **⚠️ V2 data pack — regenerate hashes before evaluation works.**
+> `src/db/ecommerce-seed.sql` is the CareerCafe V2 8-question sandbox (the previous
+> dataset is preserved as `src/db/ecommerce-seed.legacy.sql`). `expected-results.json`
+> ships with **empty hashes on purpose** — per the data pack, hashes must be generated
+> on the real PostgreSQL sandbox, never SQLite. Until you run Step 6, `POST /api/evaluate`
+> returns `Problem '...' not found in expected_results` for every question. Run, in order:
+> ```bash
+> pnpm run db:seed                    # load V2 schema + data + problems
+> npx tsx src/data/update-hashes.ts   # run each reference query on Postgres, write hashes
+> pnpm run db:seed                    # apply the freshly generated hashes to the DB
+> ```
+
 ## Step 5b: Provision the Sandbox Role (Security)
 User-submitted SQL is executed through a dedicated **read-only, non-superuser** role so
 it cannot write data, read server files, or read the expected answers. Provision it
