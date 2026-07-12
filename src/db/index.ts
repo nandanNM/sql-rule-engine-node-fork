@@ -14,7 +14,10 @@ export const pool = new Pool({
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 10000, // timeout after 10 secs if connection could not be established
   allowExitOnIdle: false,
-  ssl: process.env.DATABASE_URL?.includes("localhost") ? false : { rejectUnauthorized: false },
+  ssl:
+    process.env.DATABASE_URL?.includes("localhost") || process.env.PGSSLMODE === "disable"
+      ? false
+      : { rejectUnauthorized: false },
 });
 
 export const db = drizzle(pool, {
@@ -42,5 +45,8 @@ export const sandboxPool = new Pool({
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 10000,
   allowExitOnIdle: false,
-  ssl: sandboxConnectionString?.includes("localhost") ? false : { rejectUnauthorized: false },
+  ssl:
+    sandboxConnectionString?.includes("localhost") || process.env.PGSSLMODE === "disable"
+      ? false
+      : { rejectUnauthorized: false },
 });

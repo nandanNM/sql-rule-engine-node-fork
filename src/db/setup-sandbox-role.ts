@@ -60,7 +60,10 @@ async function main(): Promise<void> {
 
   const pool = new Pool({
     connectionString: adminUrl,
-    ssl: adminUrl.includes("localhost") ? false : { rejectUnauthorized: false },
+    ssl:
+      adminUrl.includes("localhost") || process.env.PGSSLMODE === "disable"
+        ? false
+        : { rejectUnauthorized: false },
   });
   const client = await pool.connect();
 
