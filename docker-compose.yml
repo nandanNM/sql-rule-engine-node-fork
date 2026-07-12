@@ -17,6 +17,8 @@ services:
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/sqlruleengine
       SANDBOX_DATABASE_URL: postgresql://sandbox_ro:sandbox_ro@postgres:5432/sqlruleengine
       REDIS_URL: redis://redis:6379
+      # containerized Postgres has no SSL; the DB host is "postgres" (not localhost)
+      PGSSLMODE: disable
     command: >
       sh -c "pnpm db:migrate &&
              node ./dist/db/seed.js &&
