@@ -7,6 +7,11 @@ services:
     container_name: sql-rule-engine-api
     ports:
       - "8000:8000"
+    # Load secrets (JWT_SECRET, JWT_REFRESH_SECRET, TTLs, ...) from .env.
+    # The inline `environment:` below overrides any conflicting keys (PORT,
+    # DATABASE_URL, REDIS_URL) so the container uses the internal network.
+    env_file:
+      - .env
     environment:
       PORT: 8000
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/sqlruleengine
@@ -30,7 +35,9 @@ services:
     image: postgres:16-alpine
     container_name: sql-engine-db
     ports:
-      - "5432:5432"
+      # host :5432 is already in use locally, so expose on :5434 (app still
+      # reaches Postgres via the internal network at postgres:5432)
+      - "5434:5432"
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
